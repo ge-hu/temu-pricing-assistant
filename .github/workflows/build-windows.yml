@@ -26,7 +26,7 @@ jobs:
       - name: Extract desktop project
         shell: pwsh
         run: |
-          $zip = Get-ChildItem -Path $env:GITHUB_WORKSPACE -Filter '*v0.4*.zip' | Sort-Object LastWriteTime -Descending | Select-Object -First 1
+          $zip = Get-ChildItem -Path $env:GITHUB_WORKSPACE -Filter '*v0.5.1*.zip' | Sort-Object LastWriteTime -Descending | Select-Object -First 1
           if (-not $zip) {
             $zip = Get-ChildItem -Path $env:GITHUB_WORKSPACE -Filter '*.zip' | Sort-Object LastWriteTime -Descending | Select-Object -First 1
           }
