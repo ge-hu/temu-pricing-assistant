@@ -6,13 +6,13 @@ on:
     paths:
       - '*.zip'
       - '.github/workflows/build-windows.yml'
-  pull_request:
+      - '.github/v052-patch/**'
 
 jobs:
   build-windows:
     runs-on: windows-latest
     permissions:
-      contents: read
+      contents: write
 
     steps:
       - name: Checkout repository
@@ -23,17 +23,12 @@ jobs:
         with:
           node-version: '22'
 
-      - name: Extract desktop project
+      - name: Extract v0.5.1 base project
         shell: pwsh
         run: |
-          $zip = Get-ChildItem -Path $env:GITHUB_WORKSPACE -Filter '*v0.4*.zip' | Sort-Object LastWriteTime -Descending | Select-Object -First 1
-          if (-not $zip) {
-            $zip = Get-ChildItem -Path $env:GITHUB_WORKSPACE -Filter '*.zip' | Sort-Object LastWriteTime -Descending | Select-Object -First 1
-          }
-          if (-not $zip) {
-            throw 'No project ZIP found in repository root.'
-          }
-          Write-Host "Using package: $($zip.Name)"
+          $zip = Get-ChildItem -Path $env:GITHUB_WORKSPACE -Filter '*v0.5.1*.zip' | Sort-Object LastWriteTime -Descending | Select-Object -First 1
+          if (-not $zip) { throw 'v0.5.1 project ZIP was not found in repository root.' }
+          Write-Host "Using base package: $($zip.Name)"
           $dest = Join-Path $env:RUNNER_TEMP 'temu-source'
           if (Test-Path $dest) { Remove-Item $dest -Recurse -Force }
           New-Item -ItemType Directory -Path $dest | Out-Null
@@ -43,6 +38,25 @@ jobs:
           $project = $pkg.Directory.FullName
           "PROJECT_DIR=$project" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
           Write-Host "Project directory: $project"
+
+      - name: Apply exact v0.5.2 source patch
+        shell: pwsh
+        run: |
+          $parts = Get-ChildItem (Join-Path $env:GITHUB_WORKSPACE '.github\v052-patch\part*.patch') | Sort-Object Name
+          if ($parts.Count -ne 7) { throw "Expected 7 patch parts, found $($parts.Count)." }
+          $patchPath = Join-Path $env:RUNNER_TEMP 'v0.5.2.patch'
+          $sb = New-Object System.Text.StringBuilder
+          foreach ($part in $parts) {
+            [void]$sb.Append([System.IO.File]::ReadAllText($part.FullName, [System.Text.Encoding]::UTF8))
+          }
+          [System.IO.File]::WriteAllText($patchPath, $sb.ToString(), (New-Object System.Text.UTF8Encoding($false)))
+          Set-Location $env:PROJECT_DIR
+          git apply --check --whitespace=nowarn $patchPath
+          git apply --whitespace=nowarn $patchPath
+          $pkg = Get-Content package.json -Raw | ConvertFrom-Json
+          if ($pkg.version -ne '0.5.2') { throw "Patch verification failed: package version is $($pkg.version)." }
+          if (-not (Select-String -Path main.js -Pattern "APP_VERSION = '0.5.2'" -Quiet)) { throw 'Patch verification failed: main.js version is not 0.5.2.' }
+          Write-Host 'v0.5.2 patch applied and verified.'
 
       - name: Install dependencies
         shell: pwsh
@@ -58,12 +72,24 @@ jobs:
           $out = Join-Path $env:GITHUB_WORKSPACE 'windows-build'
           New-Item -ItemType Directory -Path $out -Force | Out-Null
           Copy-Item -Path (Join-Path $env:PROJECT_DIR 'dist\*.exe') -Destination $out -Force
-          Get-ChildItem $out
+          $exe = Get-ChildItem $out -Filter '*.exe' | Select-Object -First 1
+          if (-not $exe) { throw 'Windows EXE was not generated.' }
+          Write-Host "Built: $($exe.Name) $([math]::Round($exe.Length/1MB,2)) MB"
 
-      - name: Upload Windows EXE
+      - name: Upload Windows EXE artifact
         uses: actions/upload-artifact@v4
         with:
-          name: Temu-Pricing-Assistant-Windows-x64
+          name: Temu-Pricing-Assistant-v0.5.2-Windows-x64
           path: windows-build/*.exe
           if-no-files-found: error
           retention-days: 30
+
+      - name: Publish downloadable v0.5.2 build
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: v0.5.2-build
+          name: Temu填价助手 v0.5.2 Windows 便携版
+          body: v0.5.2 Windows x64 便携版，由 GitHub Actions 从已验证的 v0.5.2 源码构建。
+          prerelease: true
+          files: windows-build/*.exe
+          fail_on_unmatched_files: true
