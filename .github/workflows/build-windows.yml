@@ -1,3 +1,4 @@
+# CI sync marker for v0.5.2 packaging
 name: Build Windows EXE
 
 on:
