@@ -20,6 +20,21 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
+      - name: Mark push build started
+        if: github.event_name == 'push'
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          $path = 'build-status-v0.5.2.json'
+          $payload = @{ status='started'; run_id='${{ github.run_id }}'; run_number='${{ github.run_number }}'; sha='${{ github.sha }}'; branch='${{ github.ref_name }}'; updated=(Get-Date).ToUniversalTime().ToString('o') } | ConvertTo-Json -Compress
+          $encoded = [Convert]::ToBase64String([Text.Encoding]::UTF8.GetBytes($payload))
+          $existing = $null
+          try { $existing = gh api "repos/${{ github.repository }}/contents/$path?ref=${{ github.ref_name }}" --jq '.sha' 2>$null } catch {}
+          $args = @('--method','PUT',"repos/${{ github.repository }}/contents/$path",'-f',"message=Build v0.5.2 status: started",'-f',"content=$encoded",'-f',"branch=${{ github.ref_name }}")
+          if ($existing) { $args += @('-f',"sha=$existing") }
+          & gh api @args | Out-Null
+
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
@@ -96,3 +111,19 @@ jobs:
           prerelease: true
           files: windows-build/*.exe
           fail_on_unmatched_files: true
+
+      - name: Write final push build status
+        if: always() && github.event_name == 'push'
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          $path = 'build-status-v0.5.2.json'
+          $exe = Get-ChildItem (Join-Path $env:GITHUB_WORKSPACE 'windows-build') -Filter '*.exe' -ErrorAction SilentlyContinue | Select-Object -First 1
+          $payload = @{ status='${{ job.status }}'; run_id='${{ github.run_id }}'; run_number='${{ github.run_number }}'; sha='${{ github.sha }}'; branch='${{ github.ref_name }}'; updated=(Get-Date).ToUniversalTime().ToString('o'); exe_name=if($exe){$exe.Name}else{''}; exe_bytes=if($exe){$exe.Length}else{0}; release_tag='v0.5.2-build' } | ConvertTo-Json -Compress
+          $encoded = [Convert]::ToBase64String([Text.Encoding]::UTF8.GetBytes($payload))
+          $existing = $null
+          try { $existing = gh api "repos/${{ github.repository }}/contents/$path?ref=${{ github.ref_name }}" --jq '.sha' 2>$null } catch {}
+          $args = @('--method','PUT',"repos/${{ github.repository }}/contents/$path",'-f',"message=Build v0.5.2 status: ${{ job.status }}",'-f',"content=$encoded",'-f',"branch=${{ github.ref_name }}")
+          if ($existing) { $args += @('-f',"sha=$existing") }
+          & gh api @args | Out-Null
