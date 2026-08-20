@@ -26,10 +26,14 @@ jobs:
       - name: Extract desktop project
         shell: pwsh
         run: |
-          $zip = Get-ChildItem -Path $env:GITHUB_WORKSPACE -Filter '*.zip' | Select-Object -First 1
+          $zip = Get-ChildItem -Path $env:GITHUB_WORKSPACE -Filter '*v0.4*.zip' | Sort-Object LastWriteTime -Descending | Select-Object -First 1
           if (-not $zip) {
-            throw 'No project ZIP found in repository root. Upload Temu desktop project ZIP first.'
+            $zip = Get-ChildItem -Path $env:GITHUB_WORKSPACE -Filter '*.zip' | Sort-Object LastWriteTime -Descending | Select-Object -First 1
           }
+          if (-not $zip) {
+            throw 'No project ZIP found in repository root.'
+          }
+          Write-Host "Using package: $($zip.Name)"
           $dest = Join-Path $env:RUNNER_TEMP 'temu-source'
           if (Test-Path $dest) { Remove-Item $dest -Recurse -Force }
           New-Item -ItemType Directory -Path $dest | Out-Null
