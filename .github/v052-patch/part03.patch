@@ -1,0 +1,52 @@
++    const st=fs.statSync(file),size=Math.min(st.size,65536),start=Math.max(0,st.size-size),buf=Buffer.alloc(size);
++    fd=fs.openSync(file,'r');fs.readSync(fd,buf,0,size,start);fs.closeSync(fd);fd=null;
++    const lines=buf.toString('utf8').split(/\r?\n/).filter(Boolean);
++    if(!lines.length)return null;
++    const rec=JSON.parse(lines[lines.length-1]);
++    return{
++      at:String(rec.at||''),
++      store:String(rec.store||''),
++      source:String(rec.source||''),
++      output:String(rec.output||''),
++      sourceRenamedTo:String(rec.sourceRenamedTo||''),
++      renameWarning:String(rec.renameWarning||'')
++    };
++  }catch{if(fd!==null)try{fs.closeSync(fd)}catch{};return null}
++}
++function workspaceInfo() { const p=ensureWorkspace(); let count=0; try{count=fs.readdirSync(p.inbox).filter(n=>/\.xlsx$/i.test(n)&&!n.startsWith('~$')&&!isArchivedOriginalName(n)).length}catch{} return {...p,pendingCount:count,autoScan:settings.workspaceAutoScan!==false,scanSeconds:clamp(Number(settings.workspaceScanSeconds)||8,3,120),lastRecord:readLatestWorkspaceLedger()}; }
+ async function chooseWorkspaceRoot() { const owner=settingsWindow||mainWindow||null; const r=await dialog.showOpenDialog(owner,{title:'选择 Temu 填价助手工作区',properties:['openDirectory','createDirectory']}); if(r.canceled||!r.filePaths[0])return workspaceInfo(); updateSettings({workspaceRoot:r.filePaths[0]}); return workspaceInfo(); }
+ function assertInboxPath(filePath){const p=ensureWorkspace(),a=path.resolve(p.inbox)+path.sep,b=path.resolve(String(filePath||''));if(!b.startsWith(a))throw new Error('文件不在待处理表格文件夹中');return b;}
+ function listWorkspaceInputFiles(){const p=ensureWorkspace(),arr=[];for(const name of fs.readdirSync(p.inbox)){if(!/\.xlsx$/i.test(name)||name.startsWith('~$')||isArchivedOriginalName(name))continue;const full=path.join(p.inbox,name);try{const st=fs.statSync(full);if(!st.isFile())continue;arr.push({id:`${full}|${st.size}|${Math.round(st.mtimeMs)}`,name,path:full,size:st.size,mtime:st.mtimeMs})}catch{}}return arr.sort((a,b)=>b.mtime-a.mtime)}
+@@ -689,6 +710,7 @@
+ ipcMain.handle('desktop:open-workspace-root', () => shell.openPath(ensureWorkspace().root));
+ ipcMain.handle('desktop:open-workspace-inbox', () => shell.openPath(ensureWorkspace().inbox));
+ ipcMain.handle('desktop:open-workspace-processed', () => shell.openPath(ensureWorkspace().processed));
++ipcMain.handle('desktop:open-workspace-logs', () => shell.openPath(ensureWorkspace().logs));
+ ipcMain.handle('desktop:workspace-list-files', () => listWorkspaceInputFiles());
+ ipcMain.handle('desktop:workspace-read-file', (_e, filePath) => readWorkspaceInputFile(filePath));
+ ipcMain.handle('desktop:workspace-save-processed', (_e, payload) => saveProcessedWorkspaceFile(payload || {}));
+--- a/package.json
++++ b/package.json
+@@ -1,7 +1,7 @@
+ {
+   "name": "temu-pricing-assistant",
+   "productName": "Temu填价助手",
+-  "version": "0.5.1",
++  "version": "0.5.2",
+   "description": "Temu活动报名填价桌面助手",
+   "main": "main.js",
+   "author": "ge-hu",
+--- a/preload.js
++++ b/preload.js
+@@ -7,6 +7,7 @@
+   openWorkspaceRoot: () => ipcRenderer.invoke('desktop:open-workspace-root'),
+   openWorkspaceInbox: () => ipcRenderer.invoke('desktop:open-workspace-inbox'),
+   openWorkspaceProcessed: () => ipcRenderer.invoke('desktop:open-workspace-processed'),
++  openWorkspaceLogs: () => ipcRenderer.invoke('desktop:open-workspace-logs'),
+   workspaceListFiles: () => ipcRenderer.invoke('desktop:workspace-list-files'),
+   workspaceReadFile: p => ipcRenderer.invoke('desktop:workspace-read-file', p),
+   workspaceSaveProcessed: payload => ipcRenderer.invoke('desktop:workspace-save-processed', payload),
+--- a/settings.html
++++ b/settings.html
+@@ -1,8 +1,8 @@
+ <!doctype html><html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>设置</title><style>
