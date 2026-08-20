@@ -1,0 +1,11 @@
+ <div class="card"><h2>🧾 活动报名历史快照</h2><div class="row"><div><label>成功导出后保存活动明细快照</label><div class="sub">保存活动名称、SKU、原价、目标价、处理结果等，之后原Excel不在也能从悬浮小面板查询。</div></div><label class="switch"><input id="activitySnapshotEnabled" type="checkbox"><span></span></label></div><div class="row"><div><label>每个SPU保留快照数量</label></div><input id="activitySnapshotKeep" type="number" min="1" max="100"></div></div>
+ <div class="card"><h2>🪟 窗口与托盘</h2><div class="row"><div><label>关闭时最小化到托盘</label><div class="sub">点击右上角关闭后继续后台运行</div></div><label class="switch"><input id="closeToTray" type="checkbox"><span></span></label></div><div class="row"><div><label>最小化按钮进入托盘</label></div><label class="switch"><input id="minimizeToTray" type="checkbox"><span></span></label></div><div class="row"><div><label>主窗口始终置顶</label></div><label class="switch"><input id="alwaysOnTop" type="checkbox"><span></span></label></div></div>
+--- a/settings.js
++++ b/settings.js
+@@ -19,5 +19,6 @@
+ $('chooseWorkspaceRoot').onclick=async()=>{await window.temuDesktop.chooseWorkspaceRoot();await load();showStatus('工作区已更新')};
+ $('openWorkspaceInbox').onclick=()=>window.temuDesktop.openWorkspaceInbox();
+ $('openWorkspaceProcessed').onclick=()=>window.temuDesktop.openWorkspaceProcessed();
++$('openWorkspaceLogs').onclick=()=>window.temuDesktop.openWorkspaceLogs();
+ $('backupNow').onclick=async()=>{const p=await window.temuDesktop.backupNow();showStatus(p?'备份完成':'已完成')};$('openBackupDir').onclick=()=>window.temuDesktop.openBackupDir();$('exportData').onclick=()=>window.temuDesktop.exportData();$('restoreData').onclick=()=>window.temuDesktop.restoreData();$('checkUpdates').onclick=()=>window.temuDesktop.checkUpdates();
+ window.temuDesktop.onSettingsChanged(()=>load());load();
