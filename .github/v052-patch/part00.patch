@@ -1,0 +1,46 @@
+--- a/README.md
++++ b/README.md
+@@ -1,6 +1,12 @@
+-# Temu填价助手 v0.5.1
++# Temu填价助手 v0.5.2
+ 
+-基于 v0.4 和确认后的悬浮视觉原型继续升级；原有默认蓝/紫配色不变，粒子层直接使用当前主色与强调色，也可在设置中关闭。
++基于 v0.5.1 继续做工作区体验与稳定性收尾；原有默认蓝/紫配色不变，现有悬浮视觉与填价逻辑保持不变。
++
++### v0.5.2 工作区体验与实时设置
++- 文件管理页“桌面工作文件夹”新增最近一次处理时间/店铺状态，导出后可直接看到最近处理信息。
++- 文件管理页、设置页和托盘菜单都新增“处理记录”入口，可直接打开 `03_处理记录与备份`。
++- “自动读取待处理表格”开关和扫描间隔在设置修改后立即生效，不再需要重启主窗口。
++- 继续保留 v0.5.1 的导出后原表关联改名逻辑，以及所有原有配色、历史、悬浮窗和备份功能。
+ 
+ ### v0.5.1 原表与导出文件自动关联命名
+ - 从“01_待处理表格”自动读取的原表，在对应导出文件成功写入后自动改名。
+@@ -26,7 +32,7 @@
+ ## 数据原则
+ - 原有历史价格、商品图、店铺归属、活动快照、迁移包和自动备份逻辑继续保留。
+ - 桌面工作区导出成功后才写入历史。
+-- 原始下载表格暂不自动删除或移动，避免误操作；后续可加“成功导出后自动归档原表”的可选开关。
++- 从工作文件夹自动读取的原表只有在对应导出文件成功写入后才会改成 `_原表.xlsx` 关联名称；不会删除，且不会再次自动扫描。
+ 
+ ## 构建
+ Windows 便携版：`npm install` 后运行 `npm run dist:win`。
+--- a/app/index.html
++++ b/app/index.html
+@@ -550,7 +550,7 @@
+ 
+   <!-- L03：文件管理区；上传/追加Excel -->
+   <div class="card" id="fileStep"><div class="step"><div class="num">1</div><div class="grow"><div class="title">文件管理：导入或追加店铺报名表</div>
+-    <div class="filebox"><input id="fileInput" type="file" accept=".xlsx" multiple><button class="btn primary" id="chooseBtn">选择 Excel 文件（可多选）</button><div id="fileName" class="hint">每个Excel文件按一个店铺/报名表处理</div></div><div id="desktopWorkspaceCard" class="desktop-workspace-card hidden"><div class="desktop-workspace-main"><div><b>桌面工作文件夹</b><div id="desktopWorkspacePath" class="hint">正在读取…</div></div><span id="desktopWorkspaceCount" class="pill">0 个待处理</span></div><div class="desktop-workspace-actions"><button id="desktopOpenInbox" class="btn small" type="button">打开待处理文件夹</button><button id="desktopScanInbox" class="btn small primary" type="button">立即读取</button><button id="desktopOpenProcessed" class="btn small" type="button">打开已处理文件夹</button><span id="desktopWorkspaceStatus" class="hint"></span></div></div>
++    <div class="filebox"><input id="fileInput" type="file" accept=".xlsx" multiple><button class="btn primary" id="chooseBtn">选择 Excel 文件（可多选）</button><div id="fileName" class="hint">每个Excel文件按一个店铺/报名表处理</div></div><div id="desktopWorkspaceCard" class="desktop-workspace-card hidden"><div class="desktop-workspace-main"><div><b>桌面工作文件夹</b><div id="desktopWorkspacePath" class="hint">正在读取…</div><div id="desktopWorkspaceRecent" class="desktop-workspace-recent hint">最近处理：暂无记录</div></div><span id="desktopWorkspaceCount" class="pill">0 个待处理</span></div><div class="desktop-workspace-actions"><button id="desktopOpenInbox" class="btn small" type="button">打开待处理文件夹</button><button id="desktopScanInbox" class="btn small primary" type="button">立即读取</button><button id="desktopOpenProcessed" class="btn small" type="button">打开已处理文件夹</button><button id="desktopOpenLogs" class="btn small" type="button">处理记录</button><span id="desktopWorkspaceStatus" class="hint"></span></div></div>
+     <div id="loadMsg" class="hint"></div><div id="stats" class="stats hidden"></div>
+   </div></div></div>
+ 
+@@ -1307,7 +1307,8 @@
+ 
+ let desktopWorkspaceLoadedIds=new Set(),desktopWorkspaceTimer=null;
+ function base64ToFile(b64,name,mtime){const bin=atob(b64),parts=[];for(let i=0;i<bin.length;i+=65536){const chunk=bin.slice(i,i+65536),a=new Uint8Array(chunk.length);for(let j=0;j<chunk.length;j++)a[j]=chunk.charCodeAt(j);parts.push(a)}return new File(parts,name,{type:'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',lastModified:Number(mtime)||Date.now()})}
+-async function refreshDesktopWorkspace(autoLoad=true){if(!window.temuDesktop?.getWorkspaceInfo)return;const card=$('desktopWorkspaceCard');if(card)card.classList.remove('hidden');try{const info=await window.temuDesktop.getWorkspaceInfo();if($('desktopWorkspacePath'))$('desktopWorkspacePath').textContent=`待处理：${info.inbox}  ·  已处理按 店铺/日期 自动分类`;if($('desktopWorkspaceCount'))$('desktopWorkspaceCount').textContent=`${info.pendingCount||0} 个待处理`;if(!autoLoad)return;const list=await window.temuDesktop.workspaceListFiles(),fresh=list.filter(x=>!desktopWorkspaceLoadedIds.has(x.id));if(!fresh.length){if($('desktopWorkspaceStatus'))$('desktopWorkspaceStatus').textContent='已同步';return}const files=[];for(const x of fresh){const r=await window.temuDesktop.workspaceReadFile(x.path);const f=base64ToFile(r.base64,r.name,r.mtime);Object.defineProperty(f,'desktopSourcePath',{value:r.path,enumerable:false,configurable:true});files.push(f);desktopWorkspaceLoadedIds.add(x.id)}if(files.length){if($('desktopWorkspaceStatus'))$('desktopWorkspaceStatus').textContent=`自动读取 ${files.length} 个新表格…`;await loadFiles(files);if($('desktopWorkspaceStatus'))$('desktopWorkspaceStatus').textContent=`已自动读取 ${files.length} 个表格`}}catch(e){if($('desktopWorkspaceStatus'))$('desktopWorkspaceStatus').textContent='工作文件夹读取失败：'+e.message}}
++function formatWorkspaceRecordTime(v){if(!v)return'';const d=new Date(v);if(Number.isNaN(d.getTime()))return String(v);return d.toLocaleString('zh-CN',{hour12:false})}
++async function refreshDesktopWorkspace(autoLoad=true){if(!window.temuDesktop?.getWorkspaceInfo)return;const card=$('desktopWorkspaceCard');if(card)card.classList.remove('hidden');try{const info=await window.temuDesktop.getWorkspaceInfo();if($('desktopWorkspacePath'))$('desktopWorkspacePath').textContent=`待处理：${info.inbox}  ·  已处理按 店铺/日期 自动分类`;if($('desktopWorkspaceCount'))$('desktopWorkspaceCount').textContent=`${info.pendingCount||0} 个待处理`;if($('desktopWorkspaceRecent')){const r=info.lastRecord;if(r){const renamed=r.sourceRenamedTo?' · 原表已关联改名':(r.renameWarning?' · 原表改名失败':'');$('desktopWorkspaceRecent').textContent=`最近处理：${formatWorkspaceRecordTime(r.at)} · ${r.store||'未分类店铺'}${renamed}`}else $('desktopWorkspaceRecent').textContent='最近处理：暂无记录'}if(!autoLoad)return;const list=await window.temuDesktop.workspaceListFiles(),fresh=list.filter(x=>!desktopWorkspaceLoadedIds.has(x.id));if(!fresh.length){if($('desktopWorkspaceStatus'))$('desktopWorkspaceStatus').textContent='已同步';return}const files=[];for(const x of fresh){const r=await window.temuDesktop.workspaceReadFile(x.path);const f=base64ToFile(r.base64,r.name,r.mtime);Object.defineProperty(f,'desktopSourcePath',{value:r.path,enumerable:false,configurable:true});files.push(f);desktopWorkspaceLoadedIds.add(x.id)}if(files.length){if($('desktopWorkspaceStatus'))$('desktopWorkspaceStatus').textContent=`自动读取 ${files.length} 个新表格…`;await loadFiles(files);if($('desktopWorkspaceStatus'))$('desktopWorkspaceStatus').textContent=`已自动读取 ${files.length} 个表格`}}catch(e){if($('desktopWorkspaceStatus'))$('desktopWorkspaceStatus').textContent='工作文件夹读取失败：'+e.message}}
+ async function desktopSaveProcessedBook(book,r,name){if(!window.temuDesktop?.workspaceSaveProcessed)return null;return await window.temuDesktop.workspaceSaveProcessed({store:book.storeName||book.file?.name||'未分类店铺',name,sourceName:book.file?.name||'',sourcePath:book.file?.desktopSourcePath||'',data:await r.blob.arrayBuffer(),stats:{updated:r.updated,deleted:r.deleted,invUpdated:r.invUpdated,invDeleted:r.invDeleted,unknown:r.unknown}})}
+ 
