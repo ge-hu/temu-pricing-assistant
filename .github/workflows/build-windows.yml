@@ -23,16 +23,11 @@ jobs:
         with:
           node-version: '22'
 
-      - name: Extract desktop project
+      - name: Extract v0.7.3 desktop project
         shell: pwsh
         run: |
-          $zip = Get-ChildItem -Path $env:GITHUB_WORKSPACE -Filter '*v0.5.1*.zip' | Sort-Object LastWriteTime -Descending | Select-Object -First 1
-          if (-not $zip) {
-            $zip = Get-ChildItem -Path $env:GITHUB_WORKSPACE -Filter '*.zip' | Sort-Object LastWriteTime -Descending | Select-Object -First 1
-          }
-          if (-not $zip) {
-            throw 'No project ZIP found in repository root.'
-          }
+          $zip = Get-ChildItem -Path $env:GITHUB_WORKSPACE -Filter '*v0.7.3*.zip' | Sort-Object LastWriteTime -Descending | Select-Object -First 1
+          if (-not $zip) { throw 'v0.7.3 project ZIP was not found in repository root.' }
           Write-Host "Using package: $($zip.Name)"
           $dest = Join-Path $env:RUNNER_TEMP 'temu-source'
           if (Test-Path $dest) { Remove-Item $dest -Recurse -Force }
@@ -41,6 +36,8 @@ jobs:
           $pkg = Get-ChildItem -Path $dest -Filter 'package.json' -Recurse | Select-Object -First 1
           if (-not $pkg) { throw 'package.json was not found after extracting ZIP.' }
           $project = $pkg.Directory.FullName
+          $package = Get-Content $pkg.FullName -Raw | ConvertFrom-Json
+          if ($package.version -ne '0.7.3') { throw "Expected package version 0.7.3, got $($package.version)." }
           "PROJECT_DIR=$project" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
           Write-Host "Project directory: $project"
 
@@ -55,15 +52,17 @@ jobs:
         run: |
           Set-Location $env:PROJECT_DIR
           npm run dist:win
-          $out = Join-Path $env:GITHUB_WORKSPACE 'windows-build'
+          $portable = Get-ChildItem -Path (Join-Path $env:PROJECT_DIR 'dist') -Filter '*.exe' | Where-Object { $_.Name -match '便携版' } | Select-Object -First 1
+          if (-not $portable) { throw 'Portable EXE was not generated.' }
+          $out = Join-Path $env:GITHUB_WORKSPACE 'windows-portable'
           New-Item -ItemType Directory -Path $out -Force | Out-Null
-          Copy-Item -Path (Join-Path $env:PROJECT_DIR 'dist\*.exe') -Destination $out -Force
+          Copy-Item -Path $portable.FullName -Destination $out -Force
           Get-ChildItem $out
 
-      - name: Upload Windows EXE
+      - name: Upload portable Windows EXE artifact
         uses: actions/upload-artifact@v4
         with:
-          name: Temu-Pricing-Assistant-Windows-x64
-          path: windows-build/*.exe
+          name: Temu-Pricing-Assistant-v0.7.3-Portable-Windows-x64
+          path: windows-portable/*.exe
           if-no-files-found: error
           retention-days: 30
