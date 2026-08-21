@@ -47,22 +47,22 @@ jobs:
           Set-Location $env:PROJECT_DIR
           npm install --no-audit --no-fund
 
-      - name: Build portable Windows EXE
+      - name: Build installer Windows EXE
         shell: pwsh
         run: |
           Set-Location $env:PROJECT_DIR
-          npm run dist:win
-          $portable = Get-ChildItem -Path (Join-Path $env:PROJECT_DIR 'dist') -Filter '*.exe' | Where-Object { $_.Name -match '便携版' } | Select-Object -First 1
-          if (-not $portable) { throw 'Portable EXE was not generated.' }
-          $out = Join-Path $env:GITHUB_WORKSPACE 'windows-portable'
+          npm run dist:win:installer
+          $installer = Get-ChildItem -Path (Join-Path $env:PROJECT_DIR 'dist') -Filter '*.exe' | Where-Object { $_.Name -match '安装版' } | Select-Object -First 1
+          if (-not $installer) { throw 'Installer EXE was not generated.' }
+          $out = Join-Path $env:GITHUB_WORKSPACE 'windows-installer'
           New-Item -ItemType Directory -Path $out -Force | Out-Null
-          Copy-Item -Path $portable.FullName -Destination $out -Force
+          Copy-Item -Path $installer.FullName -Destination $out -Force
           Get-ChildItem $out
 
-      - name: Upload portable Windows EXE artifact
+      - name: Upload installer Windows EXE artifact
         uses: actions/upload-artifact@v4
         with:
-          name: Temu-Pricing-Assistant-v0.7.3-Portable-Windows-x64
-          path: windows-portable/*.exe
+          name: Temu-Pricing-Assistant-v0.7.3-Installer-Windows-x64
+          path: windows-installer/*.exe
           if-no-files-found: error
           retention-days: 30
