@@ -26,9 +26,20 @@ jobs:
       - name: Extract desktop project
         shell: pwsh
         run: |
-          $zip = Get-ChildItem -Path $env:GITHUB_WORKSPACE -Filter '*v0.5.1*.zip' | Sort-Object LastWriteTime -Descending | Select-Object -First 1
-          if (-not $zip) {
-            $zip = Get-ChildItem -Path $env:GITHUB_WORKSPACE -Filter '*.zip' | Sort-Object LastWriteTime -Descending | Select-Object -First 1
+          $candidates = Get-ChildItem -Path $env:GITHUB_WORKSPACE -Filter '*.zip'
+          $versioned = @()
+          foreach ($file in $candidates) {
+            if ($file.Name -match 'v(?<version>\d+\.\d+\.\d+)') {
+              $versioned += [PSCustomObject]@{
+                File = $file
+                Version = [version]$Matches.version
+              }
+            }
+          }
+          if ($versioned.Count -gt 0) {
+            $zip = ($versioned | Sort-Object Version -Descending | Select-Object -First 1).File
+          } else {
+            $zip = $candidates | Sort-Object LastWriteTime -Descending | Select-Object -First 1
           }
           if (-not $zip) {
             throw 'No project ZIP found in repository root.'
