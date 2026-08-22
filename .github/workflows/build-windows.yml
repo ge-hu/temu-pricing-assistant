@@ -6,6 +6,7 @@ on:
     paths:
       - '*.zip'
       - '.github/workflows/build-windows.yml'
+      - '.github/v075-overlay/**'
   pull_request:
 
 jobs:
@@ -55,6 +56,12 @@ jobs:
           "PROJECT_DIR=$project" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
           Write-Host "Project directory: $project"
 
+      - name: Apply v0.7.5 store confirmation fix
+        shell: pwsh
+        run: |
+          & "$env:GITHUB_WORKSPACE\.github\v075-overlay\apply-v075-overlay.ps1" -ProjectDir $env:PROJECT_DIR
+          Get-Content (Join-Path $env:PROJECT_DIR 'package.json') | Select-String '"version"'
+
       - name: Install dependencies
         shell: pwsh
         run: |
@@ -74,7 +81,7 @@ jobs:
       - name: Upload Windows EXE
         uses: actions/upload-artifact@v4
         with:
-          name: Temu-Pricing-Assistant-Windows-x64
+          name: Temu-Pricing-Assistant-Windows-x64-v0.7.5
           path: windows-build/*.exe
           if-no-files-found: error
           retention-days: 30
