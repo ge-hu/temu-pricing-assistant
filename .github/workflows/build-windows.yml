@@ -1,4 +1,4 @@
-name: Build Windows EXE
+name: Build Windows Installer
 
 on:
   workflow_dispatch:
@@ -42,9 +42,7 @@ jobs:
           } else {
             $zip = $candidates | Sort-Object LastWriteTime -Descending | Select-Object -First 1
           }
-          if (-not $zip) {
-            throw 'No project ZIP found in repository root.'
-          }
+          if (-not $zip) { throw 'No project ZIP found in repository root.' }
           Write-Host "Using package: $($zip.Name)"
           $dest = Join-Path $env:RUNNER_TEMP 'temu-source'
           if (Test-Path $dest) { Remove-Item $dest -Recurse -Force }
@@ -68,20 +66,20 @@ jobs:
           Set-Location $env:PROJECT_DIR
           npm install --no-audit --no-fund
 
-      - name: Build portable Windows EXE
+      - name: Build Windows installer EXE
         shell: pwsh
         run: |
           Set-Location $env:PROJECT_DIR
-          npm run dist:win
+          npm run dist:win:installer
           $out = Join-Path $env:GITHUB_WORKSPACE 'windows-build'
           New-Item -ItemType Directory -Path $out -Force | Out-Null
-          Copy-Item -Path (Join-Path $env:PROJECT_DIR 'dist\*.exe') -Destination $out -Force
+          Copy-Item -Path (Join-Path $env:PROJECT_DIR 'dist\*安装版*.exe') -Destination $out -Force
           Get-ChildItem $out
 
-      - name: Upload Windows EXE
+      - name: Upload Windows installer
         uses: actions/upload-artifact@v4
         with:
-          name: Temu-Pricing-Assistant-Windows-x64-v0.7.5
+          name: Temu-Pricing-Assistant-Windows-x64-v0.7.5-Installer
           path: windows-build/*.exe
           if-no-files-found: error
           retention-days: 30
