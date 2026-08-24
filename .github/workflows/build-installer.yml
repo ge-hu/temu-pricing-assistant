@@ -1,0 +1,54 @@
+name: Build Windows Installer
+
+on:
+  workflow_dispatch:
+
+jobs:
+  build-installer:
+    runs-on: windows-latest
+    permissions:
+      contents: read
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Extract desktop project
+        shell: pwsh
+        run: |
+          $zip = Get-ChildItem -Path $env:GITHUB_WORKSPACE -Filter '*.zip' | Sort-Object LastWriteTime -Descending | Select-Object -First 1
+          if (-not $zip) { throw 'No project ZIP found.' }
+          $dest = Join-Path $env:RUNNER_TEMP 'temu-source'
+          New-Item -ItemType Directory -Path $dest | Out-Null
+          Expand-Archive -Path $zip.FullName -DestinationPath $dest -Force
+          $pkg = Get-ChildItem -Path $dest -Filter 'package.json' -Recurse | Select-Object -First 1
+          if (-not $pkg) { throw 'package.json not found.' }
+          "PROJECT_DIR=$($pkg.Directory.FullName)" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+
+      - name: Install dependencies
+        shell: pwsh
+        run: |
+          Set-Location $env:PROJECT_DIR
+          npm install --no-audit --no-fund
+
+      - name: Build NSIS installer
+        shell: pwsh
+        run: |
+          Set-Location $env:PROJECT_DIR
+          npx electron-builder --win nsis
+          $out = Join-Path $env:GITHUB_WORKSPACE 'windows-installer'
+          New-Item -ItemType Directory -Path $out -Force | Out-Null
+          Copy-Item -Path (Join-Path $env:PROJECT_DIR 'dist\*.exe') -Destination $out -Force
+
+      - name: Upload installer
+        uses: actions/upload-artifact@v4
+        with:
+          name: Temu-Pricing-Assistant-Installer-x64
+          path: windows-installer/*.exe
+          if-no-files-found: error
+          retention-days: 30
